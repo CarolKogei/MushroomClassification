@@ -1,0 +1,167 @@
+---
+title: "XGBoost"
+author: "Clifford Mwenda"
+date: "2024-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Used when working with large datasets
+
+# Best gradient boosting in terms of performance and speed.
+
+# Does not need feature scaling in data pre-processing stage
+
+#Qualities of XGBoost:
+#1. High performance
+#2. Fast execution speed
+#3. You can keep all the interpretations of the problem and model.
+
+
+
+
+DATA PREPROCESSING
+
+Import Data Set
+```{r}
+setwd("C:/Users/Latitude/Desktop/Mushroom Classification")
+dataset = read.csv("mushroom.csv", na.strings = c("", " ", "NA"))
+str(dataset)
+```
+
+Make Character Variables Factors
+```{r}
+library(dplyr)
+# Convert 'e' to 0 and 'p' to 1
+dataset$class <- as.factor(ifelse(dataset$class == 'e', 0, 1))
+
+# Verify the levels of the factor
+levels(dataset$class)
+
+
+dataset <- dataset %>%
+  mutate(across(-c(cap.diameter, stem.height, stem.width, class), as.factor))
+
+str(dataset$class)
+```
+
+Check DV Distribution
+```{r}
+prop.table(table(dataset$class))
+
+#Here we want to confirm that the distribution between the two label data is not too much different. Because imbalanced datasets can lead to imbalanced accuracy.
+```
+
+Check NAs and Drop Columns with NAs
+```{r}
+n_nas = colSums(is.na(dataset))
+(n_nas/61069) * 100
+dataset = dataset %>% select(where(~ !any(is.na(.))))
+str(dataset)
+```
+
+Re-Arrange Columns
+```{r}
+dataset = dataset[, c(2:12, 1)]
+str(dataset)
+```
+
+Convert Categorical Features to Numeric for XGBOOST
+```{r}
+dataset$cap.shape = as.numeric(as.integer(dataset$cap.shape))
+dataset$cap.color = as.numeric(as.integer(dataset$cap.color))
+dataset$does.bruise.or.bleed = as.numeric(as.integer(dataset$does.bruise.or.bleed))
+dataset$gill.color = as.numeric(as.integer(dataset$gill.color))
+dataset$stem.color = as.numeric(as.integer(dataset$stem.color))
+dataset$has.ring = as.numeric(as.integer(dataset$has.ring))
+dataset$habitat = as.numeric(as.integer(dataset$habitat))
+dataset$season = as.numeric(as.integer(dataset$season))
+dataset$class = as.numeric(as.integer(dataset$class))
+
+table(dataset$class)
+
+# Convert '1'/edible to 1 and '2'/poisonous to 0
+dataset$class <- ifelse(dataset$class == 1, 1, 0)
+```
+
+Split Data-set into Training and Testing
+```{r}
+library("caTools")
+set.seed(123)
+split = sample.split(dataset$class, SplitRatio = 0.75)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+```
+
+
+
+
+
+
+FITTING AND EVALUATING MODEL
+
+Fitting XGBoost to the Training set, Predicting the Test set results, and Making the Confusion Matrix
+```{r}
+# Fitting XGBoost to the Training Set
+library(xgboost)
+
+params = list(
+  objective = "binary:logistic", #Binary Classification
+  eval_metric = "error" #Evaluate metric
+)
+
+dtrain = xgb.DMatrix(as.matrix(training_set[-12]), label = training_set$class)
+dtest <- xgb.DMatrix(as.matrix(test_set[-12]))
+
+classifier = xgb.train(params = params,
+                       data = dtrain,
+                       nrounds = 100)
+
+# Predictions on the test set
+preds = predict(classifier, dtest)
+
+# Convert probabilities to binary predictions
+y_pred = ifelse(preds > 0.5, 1, 0)
+
+# Calculate confusion matrix
+cm = table(test_set[, 12], y_pred)
+
+# Calculate accuracy
+accuracy = sum(diag(cm)) / sum(cm)
+accuracy #97.44% for 30 nrounds and 99.33% for nrounds
+```
+
+Apply k-Fold Cross-Validation
+```{r}
+# Evaluate the XGBoost's Performance using k-fold
+# Applying k-Fold Cross Validation
+library(caret)
+
+params = list(
+  objective = "binary:logistic", #Binary Classification
+  eval_metric = "error" #Evaluate metric
+)
+
+folds = createFolds(training_set$class, k = 10)
+
+cv = lapply(folds, function(x) {
+  training_fold = training_set[-x, ]
+  test_fold = training_set[x, ]
+  classifier = xgb.train(params = params,
+                         data = xgb.DMatrix(as.matrix(training_fold[-12]), label = training_fold$class),
+                         nrounds = 100)
+  y_pred = predict(classifier, newdata = xgb.DMatrix(as.matrix(test_fold[-12])))
+  #The XGBoost will return probabilities so we convert probabilities to 0 or 1:
+  y_pred = ifelse(y_pred > 0.5, 1, 0)
+  cm = table(test_fold[, 12], y_pred)
+  accuracy = sum(diag(cm)) / sum(cm)
+  return(accuracy)
+})
+
+
+accuracy = mean(as.numeric(cv))
+accuracy #70.09% for 1 nround #96.75% for 30 nround #99.30% for 100 nround
+```

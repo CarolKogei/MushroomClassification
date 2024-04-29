@@ -1,0 +1,111 @@
+---
+title: "Decision Tree"
+author: "Clifford Mwenda"
+date: "2024-04-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+DATA PREPROCESSING
+
+Import Data Set
+```{r}
+setwd("C:/Users/Latitude/Desktop/Mushroom Classification")
+dataset = read.csv("mushroom.csv", na.strings = c("", " ", "NA"))
+str(dataset)
+```
+
+Make Character Variables Factors
+```{r}
+library(dplyr)
+dataset <- dataset %>%
+  mutate(across(-c(cap.diameter, stem.height, stem.width), as.factor))
+str(dataset)
+```
+
+Check DV Distribution
+```{r}
+prop.table(table(dataset$class))
+
+#Here we want to confirm that the distribution between the two label data is not too much different. Because imbalanced datasets can lead to imbalanced accuracy.
+```
+
+Check NAs and Drop Columns with NAs
+```{r}
+n_nas = colSums(is.na(dataset))
+(n_nas/61069) * 100
+dataset = dataset %>% select(where(~ !any(is.na(.))))
+str(dataset)
+```
+
+Re-Arrange Columns
+```{r}
+dataset = dataset[, c(2:12, 1)]
+str(dataset)
+```
+
+Split Data-set into Training and Testing
+```{r}
+library("caTools")
+set.seed(123)
+split = sample.split(dataset$class, SplitRatio = 0.75)
+training_set = subset(dataset, split == TRUE)
+test_set = subset(dataset, split == FALSE)
+```
+
+Feature Scaling
+```{r}
+training_set[, c(1, 6:7)] = scale(training_set[, c(1, 6:7)]) #Z Score
+test_set[, c(1, 6:7)] = scale(test_set[, c(1, 6:7)])
+
+
+str(training_set)
+```
+
+
+
+
+
+
+
+
+
+FITTING AND EVALUATING THE MODEL
+
+
+Fitting Decision Tree to the Training set, Predicting the Test set results, and Making the Confusion Matrix
+```{r}
+#Fitting Decision Tree to the Training Set
+library(rpart)
+classifier = rpart(formula = class ~ .,
+                   data = training_set)
+
+
+y_pred = predict(classifier, newdata = test_set[-12], type = "class")
+
+
+cm = table(test_set[, 12], y_pred)
+cm
+accuracy = (cm[1, 1] + cm[2, 2]) / (cm[1, 1] + cm[2, 2] + cm[1, 2] + cm[2, 1])
+accuracy #76.76%
+```
+
+Apply k-Fold Cross-Validation
+```{r}
+library(caret)
+set.seed(123)
+
+trainctrl <- trainControl(method = "cv", number = 10, savePredictions = "all")#"cv" = Cross Validation #Ten_Folds
+
+kf_fit <- train(class ~ ., data = dataset, method = "rpart", trControl=trainctrl, tuneLength = 0)#Logistic Regression Method
+#we set the tuneLength to zero because we focus on evaluating the method on each fold. We can also set the tuneLength if we want to do the parameter tuning during the cross-validation. For example, if we use the K-NN  method, and we want to analyze how many K is the best for our model.
+
+kf_fit #57.57% -It is a fail
+
+```
+
+
