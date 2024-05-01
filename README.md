@@ -1,12 +1,10 @@
 # MushroomClassification
 
-In this directory, I will establish the best classification model from the ones listed below. This is my first directory. Any positive criticism is appreciated. Thank you.
+In this repository, I investigate the best classification model from the list below. Any feedback is welcomed. 
 
 You can find the original dataset here: https://www.kaggle.com/datasets/vishalpnaik/mushroom-classification-edible-or-poisonous/data
 
-Programming Languages used:
-- R
-- Python
+Programming Languages used : **Python and R**
 
 Models evaluated:
 - K-Nearest Neighbors
